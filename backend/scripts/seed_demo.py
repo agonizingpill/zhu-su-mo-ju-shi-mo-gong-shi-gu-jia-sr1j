@@ -1,13 +1,16 @@
 import random
 from sqlalchemy import select, func
-from src.db import Base,engine,Session
+from src.db import Base,engine,Session,migrate
 from src.models import User,Mould,MachineSlot,Estimate,TrialHistory
 from src.execution_models import TrialExecution,CostReview
 from src.workshop_models import MaintenanceWindow,ResinLot,TrialMaterial,ReviewMaterialLedger,TrialDelivery
+from src.rate_models import MachineRateVersion
+from src.rate_service import create_version
 from src.auth import hash_password
 
 def seed():
     Base.metadata.create_all(engine)
+    migrate()
     with Session() as s:
         for role in ('admin','estimator','viewer'):
             if not s.scalar(select(User).where(User.email==role+'@ruimo.demo')): s.add(User(email=role+'@ruimo.demo',role=role,password_hash=hash_password('Mould2026!')))
@@ -16,6 +19,9 @@ def seed():
         s.flush()
         for machine,start,cap in [('M280','2026-11-18 08:00',48),('M280','2026-11-19 08:00',4),('M450','2026-11-18 08:00',72)]:
             if not s.scalar(select(MachineSlot).where(MachineSlot.machine==machine,MachineSlot.start_hour==start)): s.add(MachineSlot(machine=machine,start_hour=start,capacity_hours=cap,reserved_hours=0))
+        for machine,rate,note in [('ALL',280,'车间基准机时费率'),('M450',300,'M450 机台专用费率')]:
+            if not s.scalar(select(MachineRateVersion).where(MachineRateVersion.machine==machine)):
+                create_version(s,machine,rate,note,'seed')
         rng=random.Random(42)
         for i in range(160):
             code=f'TR-{i+1:03d}'
@@ -30,10 +36,11 @@ def seed():
         s.flush()
         if not s.scalar(select(Estimate).where(Estimate.code=='QE-FLOOR-DEMO')):
             m=s.scalar(select(Mould).where(Mould.code=='MD-42'));slot=s.scalar(select(MachineSlot).where(MachineSlot.machine=='M450'))
-            s.add(Estimate(code='QE-FLOOR-DEMO',mould_id=m.id,slot_id=slot.id,rate=300,setup_hours=1,predicted_hours=10,quote_amount=5000,status='committed',model_result={'note':'已承诺的演示订单，供实绩采集；不作模型效果指标'}));slot.reserved_hours+=10
+            v450=s.scalar(select(MachineRateVersion).where(MachineRateVersion.machine=='M450'))
+            s.add(Estimate(code='QE-FLOOR-DEMO',mould_id=m.id,slot_id=slot.id,rate=300,rate_version=v450.label if v450 else None,setup_hours=1,predicted_hours=10,quote_amount=5000,status='committed',model_result={'note':'已承诺的演示订单，供实绩采集；不作模型效果指标'}));slot.reserved_hours+=10
         for code,grade,qty,price,state in [('RS-P20-DEMO','ABS自然色',500,20,'available'),('RS-ISOLATED','ABS复检隔离',50,18,'quarantine')]:
             if not s.scalar(select(ResinLot).where(ResinLot.code==code)):
                 s.add(ResinLot(code=code,grade=grade,received_kg=qty,available_kg=qty,unit_price=price,state=state))
         s.commit()
-        print({t.__tablename__:s.scalar(select(func.count()).select_from(t)) for t in (User,Mould,MachineSlot,Estimate,TrialHistory,TrialExecution,CostReview,MaintenanceWindow,ResinLot,TrialMaterial,ReviewMaterialLedger,TrialDelivery)})
+        print({t.__tablename__:s.scalar(select(func.count()).select_from(t)) for t in (User,Mould,MachineSlot,Estimate,TrialHistory,TrialExecution,CostReview,MaintenanceWindow,ResinLot,TrialMaterial,ReviewMaterialLedger,TrialDelivery,MachineRateVersion)})
 if __name__=='__main__':seed()

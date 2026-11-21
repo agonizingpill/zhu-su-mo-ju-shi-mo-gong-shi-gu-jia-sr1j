@@ -13,7 +13,6 @@ class MouldInput(BaseModel):
 class EstimateInput(BaseModel):
     code:str=Field(min_length=1,max_length=40)
     mould_id:int
-    rate:float=Field(gt=0,le=10000)
     setup_hours:float=Field(ge=0,le=48)
     quote_amount:float=Field(ge=0,le=10000000)
 class QuoteInput(BaseModel):

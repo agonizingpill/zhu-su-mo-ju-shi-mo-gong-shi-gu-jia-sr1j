@@ -33,6 +33,8 @@ class Estimate(Base):
     mould_id: Mapped[int]=mapped_column(ForeignKey('moulds.id'))
     slot_id: Mapped[int|None]=mapped_column(ForeignKey('machine_slots.id'),nullable=True)
     rate: Mapped[float]=mapped_column(Float)
+    rate_version: Mapped[str|None]=mapped_column(String(60),nullable=True)
+    rate_invalid_reason: Mapped[str|None]=mapped_column(String(300),nullable=True)
     setup_hours: Mapped[float]=mapped_column(Float)
     predicted_hours: Mapped[float|None]=mapped_column(Float,nullable=True)
     quote_amount: Mapped[float]=mapped_column(Float)

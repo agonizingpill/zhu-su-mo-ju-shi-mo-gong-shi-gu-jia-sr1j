@@ -16,6 +16,7 @@ def view(s,x):
         d['estimate_code']=x.snapshot['estimate_code'];d['net_material_cost']=material_cost(s,x.id)[0]
     else:
         e=item(s,TrialExecution,x.execution_id);d['estimate_code']=e.snapshot['estimate_code'];d['requires_explanation']=abs(x.variance_pct)>20 or x.margin<0
+        d['rate_version']=e.snapshot.get('rate_version','');d['rate']=e.snapshot.get('rate')
         ledger=s.scalar(select(ReviewMaterialLedger).where(ReviewMaterialLedger.review_id==x.id));d['material_ledger']=serialize(ledger) if ledger else None
     return d
 def begin(s,data,u):
@@ -25,7 +26,7 @@ def begin(s,data,u):
     if s.scalar(select(TrialExecution.id).where(TrialExecution.estimate_id==e.id)):raise HTTPException(409,'该估单已经开工，不可重复建立实绩')
     trial_ready(s,e,stamp(data.started_at))
     m=item(s,Mould,e.mould_id)
-    x=TrialExecution(estimate_id=e.id,started_at=stamp(data.started_at).isoformat(),snapshot={'estimate_code':e.code,'predicted_hours':e.predicted_hours,'quoted_amount':e.quote_amount,'rate':e.rate,'mould_code':m.code,'slot_id':e.slot_id},status='running')
+    x=TrialExecution(estimate_id=e.id,started_at=stamp(data.started_at).isoformat(),snapshot={'estimate_code':e.code,'predicted_hours':e.predicted_hours,'quoted_amount':e.quote_amount,'rate':e.rate,'rate_version':e.rate_version or '','mould_code':m.code,'slot_id':e.slot_id},status='running')
     s.add(x);record(s,u,'试模开工 '+e.code);s.flush();return x
 def finish(s,eid,data,u):
     x=s.query(TrialExecution).filter_by(id=eid).with_for_update().one_or_none()
